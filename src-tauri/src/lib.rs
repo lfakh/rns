@@ -1,16 +1,24 @@
 mod db;
 mod network;
 mod commands;
+mod media;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 use tauri::Manager;
 
 pub fn run() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_geolocation::init())
     .invoke_handler(tauri::generate_handler![
       commands::get_identity,
       commands::get_messages,
+      commands::get_contacts,
+      commands::add_contact,
+      commands::update_location,
       commands::send_message,
+      commands::send_image,
+      commands::send_audio,
     ])
     .setup(|app| {
       let handle = app.handle().clone();

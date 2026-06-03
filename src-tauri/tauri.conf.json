@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0-rc",
-  "productName": "rnsd",
+  "productName": "Bestra RNSD",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.bestra.rnsd",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:4321",

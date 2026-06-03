@@ -22,7 +22,9 @@ pub fn init_db(app_handle: &AppHandle) -> Result<DbState, Box<dyn std::error::Er
         "CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             sender TEXT NOT NULL,
-            content TEXT NOT NULL,
+            content TEXT,
+            msg_type TEXT DEFAULT 'text',
+            attachment_path TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )",
         [],
@@ -32,6 +34,14 @@ pub fn init_db(app_handle: &AppHandle) -> Result<DbState, Box<dyn std::error::Er
         "CREATE TABLE IF NOT EXISTS contacts (
             identity_hash TEXT PRIMARY KEY,
             display_name TEXT NOT NULL
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS profile (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )",
         [],
     )?;

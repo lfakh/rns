@@ -21,7 +21,8 @@ log = "0.4"
 
 # Tauri dependencies
 tauri = { version = "2.11.2" }
-tauri-plugin-shell = "2.3.5"
+tauri-plugin-shell = "2"
+tauri-plugin-geolocation = "2"
 
 # Reticulum-rs (Targeting v0.2.0)
 reticulum-rs = "0.2.0"
@@ -32,7 +33,13 @@ rusqlite = { version = "0.31.0", features = ["bundled"] }
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
+# Yggdrasil dependencies
+yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", package = "yggdrasil" }
+ironwood = { git = "https://github.com/Revertron/Yggdrasil-ng.git", package = "ironwood" }
+toml = "1"
+
 # Miscellaneous utilities
 uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25", features = ["avif"] }
 audiopus = "0.3.0-rc.0"
+ed25519-dalek = "2"

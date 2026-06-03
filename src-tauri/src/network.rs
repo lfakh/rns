@@ -8,11 +8,16 @@ use reticulum_rs::iface::udp::UdpInterface;
 use reticulum_rs::transport::hash::AddressHash;
 use tokio::sync::Mutex;
 use crate::db::DbState;
+use yggdrasil::core::Core;
+use yggdrasil::config::Config;
+use ed25519_dalek::SigningKey;
 
 pub struct NetworkState {
     pub identity: PrivateIdentity,
     pub transport: Arc<Mutex<Transport>>,
     pub address: AddressHash,
+    pub ygg_core: Arc<Core>,
+    pub ygg_address: String,
 }
 
 pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dyn std::error::Error>> {
@@ -21,6 +26,7 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
         fs::create_dir_all(&app_dir)?;
     }
     
+    // --- 1. Initialize Reticulum Identity ---
     let id_path = app_dir.join("identity.key");
     
     let identity = if id_path.exists() {
@@ -34,19 +40,39 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
     
     println!("Reticulum Private Identity initialized: {}", identity.address_hash());
 
-    // 1. Initialize Transport
+    // --- 2. Initialize Yggdrasil ---
+    let ygg_config_path = app_dir.join("yggdrasil.toml");
+    let ygg_config = if ygg_config_path.exists() {
+        let content = fs::read_to_string(&ygg_config_path)?;
+        toml::from_str::<Config>(&content).unwrap_or_else(|_| Config::default())
+    } else {
+        let config = Config::default();
+        let content = toml::to_string(&config)?;
+        fs::write(&ygg_config_path, content)?;
+        config
+    };
+
+    let priv_bytes = identity.to_private_key_bytes();
+    let signing_key = SigningKey::from_bytes(&priv_bytes[32..].try_into().unwrap());
+    let ygg_core = Core::new(signing_key, ygg_config);
+    let ygg_address = ygg_core.address().to_string();
+    println!("Yggdrasil initialized with address: {}", ygg_address);
+
+    // --- 3. Initialize Reticulum Transport ---
     let config = TransportConfig::new("rnsd", &identity, true);
     let mut transport = Transport::new(config);
     
-    // 2. Add UDP Interface for local discovery (Standard RNS port)
+    // Add UDP Interface binding to all interfaces (IPv4 and IPv6)
+    // This allows RNS to communicate over both local LAN and Yggdrasil mesh
     {
         let manager_arc = transport.iface_manager();
         let mut iface_manager = manager_arc.lock().await;
-        let udp_iface = UdpInterface::new("0.0.0.0:29716", None);
+        
+        // Listen on IPv4 and IPv6
+        let udp_iface = UdpInterface::new("[::]:29716", None);
         iface_manager.spawn(udp_iface, UdpInterface::spawn);
     }
     
-    // 3. Create Destination for this app
     let dest_name = DestinationName::new("rnsd", "chat");
     let destination = transport.add_destination(
         identity.clone(),
@@ -56,7 +82,7 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
     let address = *destination.lock().await.identity.address_hash();
     let transport = Arc::new(Mutex::new(transport));
 
-    // 4. Start Background Listener
+    // --- 3. Start Background Listener ---
     let handle_clone = app_handle.clone();
     let transport_clone = transport.clone();
     let my_address = address;
@@ -68,22 +94,20 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
         while let Ok(received) = rx.recv().await {
             if received.destination == my_address {
                 let content = String::from_utf8_lossy(received.data.as_slice()).to_string();
-                let sender = "unknown".to_string(); // In a real app, we'd extract the sender identity
+                let sender = "unknown".to_string();
                 
                 println!("Received message for {}: {}", my_address, content);
                 
-                // Save to DB
                 if let Some(db) = handle_clone.try_state::<DbState>() {
                     let id = uuid::Uuid::new_v4().to_string();
                     let conn = db.conn.lock().unwrap();
                     let res = conn.execute(
-                        "INSERT INTO messages (id, sender, content) VALUES (?, ?, ?)",
-                        (&id, &sender, &content),
+                        "INSERT INTO messages (id, sender, content, msg_type) VALUES (?, ?, ?, ?)",
+                        (&id, &sender, &content, "text"),
                     );
                     if let Err(e) = res {
                         eprintln!("Failed to save received message: {}", e);
                     } else {
-                        // Notify UI
                         let _ = handle_clone.emit("new-message", id);
                     }
                 }
@@ -95,5 +119,7 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
         identity,
         transport,
         address,
+        ygg_core,
+        ygg_address,
     })
 }

@@ -34,15 +34,16 @@ Build a serverless, peer-to-peer mobile chat application that utilizes the Retic
 
 ### Phase 2: Core Rust Services (Networking & DB)
 - [x] Integrate `reticulum-rs` into the Tauri backend.
-- [x] Configure `AutoInterface` (UDP Multi-interface) and basic Identity management.
-- [x] Setup `libsql` (rusqlite) with a local file-based schema (Messages, Contacts, Blobs).
-- [ ] Implement Rust-level "Services" for AVIF image conversion and Opus audio encoding.
+- [x] Configure `AutoInterface` and basic Identity management.
+- [x] Setup `libsql` with a local file-based schema (Messages, Contacts, Blobs).
+- [x] Integrate Yggdrasil for global mesh connectivity.
+- [x] Implement Rust-level "Services" for AVIF image conversion and Opus audio encoding.
 
 ### Phase 3: Frontend & Tauri Bridge
-- [x] Create Tauri Commands for: `send_message`, `get_history`, `add_contact`, `update_location`.
+- [x] Create Tauri Commands for: `send_message`, `get_history`, `add_contact`, `update_location`, `send_image`, `send_audio`.
 - [x] Implement Svelte Runes for the chat interface to handle real-time message updates.
-- [ ] Integrate Tauri Geolocation plugin for location pings.
-- [ ] Add the project logo (`static/app.ico`) to the app bundle and UI.
+- [x] Integrate Tauri Geolocation plugin for location pings.
+- [x] Add the project logo (`public/icon.svg`) to the app bundle and UI.
 
 ### Phase 4: Mobile Optimization & Verification
 - [ ] Implement background task persistence for Reticulum on Android/iOS.
