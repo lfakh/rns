@@ -56,25 +56,42 @@ pub struct Contact {
 }
 
 #[command]
+pub async fn update_location(
+    db: State<'_, DbState>,
+    latitude: f64,
+    longitude: f64,
+) -> Result<(), String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let location = format!("{},{}", latitude, longitude);
+    conn.execute(
+        "INSERT OR REPLACE INTO profile (key, value) VALUES ('last_location', ?)",
+        [location],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[command]
 pub async fn add_contact(
     db: State<'_, DbState>,
     network: State<'_, NetworkState>,
     identity_hash: String,
     display_name: String,
 ) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    
-    // 1. Insert as pending
-    conn.execute(
-        "INSERT OR REPLACE INTO contacts (identity_hash, display_name, status) VALUES (?, ?, ?)",
-        (&identity_hash, &display_name, "pending"),
-    )
-    .map_err(|e| e.to_string())?;
-    
-    // 2. Send handshake request via Reticulum
     let my_id = network.identity.address_hash().to_hex_string();
     let my_name = "User".to_string(); // TODO: Get from profile
+
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        // 1. Insert as pending
+        conn.execute(
+            "INSERT OR REPLACE INTO contacts (identity_hash, display_name, status) VALUES (?, ?, ?)",
+            (&identity_hash, &display_name, "pending"),
+        )
+        .map_err(|e| e.to_string())?;
+    }
     
+    // 2. Send handshake request via Reticulum
     let protocol = crate::network::Protocol::HandshakeRequest {
         sender_id: my_id,
         sender_name: my_name,
@@ -104,19 +121,21 @@ pub async fn accept_handshake(
     db: State<'_, DbState>,
     identity_hash: String,
 ) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    
-    // 1. Update status to accepted
-    conn.execute(
-        "UPDATE contacts SET status = 'accepted' WHERE identity_hash = ?",
-        [&identity_hash],
-    )
-    .map_err(|e| e.to_string())?;
+    let my_id = network.identity.address_hash().to_hex_string();
+
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        // 1. Update status to accepted
+        conn.execute(
+            "UPDATE contacts SET status = 'accepted' WHERE identity_hash = ?",
+            [&identity_hash],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     
     // 2. Send handshake acceptance
-    let my_id = network.identity.address_hash().to_hex_string();
     let protocol = crate::network::Protocol::HandshakeAccept {
-        sender_id: my_id,
+        sender_id: my_id.clone(),
     };
     
     let payload = serde_json::to_string(&protocol).map_err(|e| e.to_string())?;
@@ -136,6 +155,7 @@ pub async fn accept_handshake(
     
     // 3. Send last 10 messages as history sync
     let last_messages = {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT id, content, timestamp, msg_type FROM messages ORDER BY timestamp DESC LIMIT 10").map_err(|e| e.to_string())?;
         let msg_iter = stmt.query_map([], |row| {
             Ok(crate::network::SyncMessage {
