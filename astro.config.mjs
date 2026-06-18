@@ -9,5 +9,11 @@ export default defineConfig({
   output: 'static',
   vite: {
     plugins: [tailwindcss()],
+    css: {
+      transformer: 'lightningcss',
+    },
+    build: {
+      cssMinify: 'lightningcss',
+    },
   },
 });

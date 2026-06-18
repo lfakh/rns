@@ -32,10 +32,13 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --prefer-online --no-audit
 
       - name: Initialize Android project
-        run: npx tauri android init
+        run: |
+          if [ ! -d "src-tauri/gen/android" ]; then
+            npx tauri android init
+          fi
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
 
