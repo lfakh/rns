@@ -32,9 +32,9 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
     
     let identity = if id_path.exists() {
         let key_data = fs::read(&id_path)?;
-        PrivateIdentity::from_private_key_bytes(&key_data).unwrap_or_else(|_| PrivateIdentity::new())
+        PrivateIdentity::from_private_key_bytes(&key_data).unwrap_or_else(|_| PrivateIdentity::new_from_name(&uuid::Uuid::new_v4().to_string()))
     } else {
-        let new_id = PrivateIdentity::new();
+        let new_id = PrivateIdentity::new_from_name(&uuid::Uuid::new_v4().to_string());
         fs::write(&id_path, new_id.to_private_key_bytes())?;
         new_id
     };
