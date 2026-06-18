@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: npm install --prefer-online --no-audit
 
+      - name: Generate Icons
+        run: npx tauri icon public/bestra-chat.svg
+
       - name: Initialize Android project
         run: |
           if [ ! -d "src-tauri/gen/android" ]; then
