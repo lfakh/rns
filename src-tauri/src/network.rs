@@ -12,6 +12,7 @@ use yggdrasil::core::Core;
 use yggdrasil::config::Config;
 use ed25519_dalek::SigningKey;
 
+#[allow(dead_code)]
 pub struct NetworkState {
     pub identity: PrivateIdentity,
     pub transport: Arc<Mutex<Transport>>,

@@ -44,9 +44,17 @@ jobs:
 
       - name: Add Android Permissions
         run: |
-          # Inject permissions into AndroidManifest.xml
           MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />\n    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />' $MANIFEST
+          # Function to add permission if missing
+          add_perm() {
+            if ! grep -q "$1" "$MANIFEST"; then
+              sed -i "/<application/i \    <uses-permission android:name=\"$1\" />" "$MANIFEST"
+            fi
+          }
+          add_perm "android.permission.INTERNET"
+          add_perm "android.permission.ACCESS_NETWORK_STATE"
+          add_perm "android.permission.ACCESS_WIFI_STATE"
+          add_perm "android.permission.CHANGE_WIFI_MULTICAST_STATE"
 
       - name: Build APK
         run: npx tauri android build --debug

@@ -20,7 +20,7 @@ pub fn process_image_to_avif(input_bytes: &[u8]) -> Result<Vec<u8>, Box<dyn std:
 
 pub fn process_audio_to_opus(pcm_data: &[f32]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     // Standard settings for voice chat
-    let mut encoder = Encoder::new(SampleRate::Hz48000, Channels::Mono, Application::Voip)?;
+    let encoder = Encoder::new(SampleRate::Hz48000, Channels::Mono, Application::Voip)?;
     
     // Opus encoding requires fixed frame sizes. 
     // For 48kHz mono, a 20ms frame is 960 samples.

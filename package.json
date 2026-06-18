@@ -9,7 +9,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@astrojs/svelte": "^8.1.2",
