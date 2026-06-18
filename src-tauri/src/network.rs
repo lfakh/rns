@@ -69,8 +69,13 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
         let mut iface_manager = manager_arc.lock().await;
         
         // Listen on IPv4 and IPv6
-        let udp_iface = UdpInterface::new("[::]:29716", None);
-        iface_manager.spawn(udp_iface, UdpInterface::spawn);
+        // IPv6
+        let udp_iface_v6 = UdpInterface::new("[::]:29716", None);
+        iface_manager.spawn(udp_iface_v6, UdpInterface::spawn);
+
+        // IPv4 (Essential for some Android hotspot/local mesh scenarios)
+        let udp_iface_v4 = UdpInterface::new("0.0.0.0:29716", None);
+        iface_manager.spawn(udp_iface_v4, UdpInterface::spawn);
     }
     
     let dest_name = DestinationName::new("rnsd", "chat");

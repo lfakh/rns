@@ -51,7 +51,26 @@ Build a serverless, peer-to-peer mobile chat application that utilizes the Retic
 - [ ] Verify image/audio compression and storage in libSQL.
 - [ ] Final UI polish with Tailwind 4.
 
-## 5. Verification & Testing
+## 6. How to Test on Android (GitHub Build)
+
+To test on your Android devices without setting up a local SDK:
+
+1. **Commit and Push:**
+   - Push these changes to a GitHub repository.
+   - The GitHub Action in `.github/workflows/android-build.yml` will automatically trigger.
+
+2. **Download Artifact:**
+   - Go to the **Actions** tab in your GitHub repo.
+   - Once the "Build Android APK" job finishes, download the `app-debug` artifact.
+   - Transfer and install the `.apk` on both Android devices.
+
+3. **IPv6 / Yggdrasil Testing:**
+   - Ensure both devices have internet access (or a shared IPv6 mesh).
+   - The app will automatically initialize Yggdrasil and generate an IPv6 address.
+   - Reticulum will communicate over the Yggdrasil-generated IPv6 interface.
+   - Share the Reticulum ID shown at the top of the app to start chatting.
+
+## 7. Verification & Testing
 - **Local Mesh Test:** Verify two devices find each other via `AutoInterface` without internet.
 - **Media Integrity:** Confirm AVIF and Opus files are correctly stored in libSQL and rendered in the UI.
 - **Persistence:** Ensure messages remain available after app restart and device reboot.
