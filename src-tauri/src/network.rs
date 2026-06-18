@@ -174,6 +174,7 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
                                 let _ = handle_clone.emit("new-message", "sync"); // Trigger full refresh
                             }
                         }
+                    }
                 } else {
                     // Fallback for legacy raw text messages
                     if let Some(db) = handle_clone.try_state::<DbState>() {
