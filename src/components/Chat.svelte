@@ -4,6 +4,8 @@
   import { onMount } from "svelte";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { getCurrentPosition } from "@tauri-apps/plugin-geolocation";
+  import QRCode from "qrcode";
+  import { scan } from "@tauri-apps/plugin-barcode-scanner";
 
   interface Message {
     id: string;
@@ -16,6 +18,8 @@
 
   let messages = $state<Message[]>([]);
   let identity = $state("");
+  let qrCodeDataUrl = $state("");
+  let showQR = $state(false);
   let newMessage = $state("");
   let recipient = $state("");
   let fileInput: HTMLInputElement;
@@ -24,8 +28,22 @@
     try {
       identity = await invoke("get_identity");
       messages = await invoke("get_messages");
+      if (identity) {
+        qrCodeDataUrl = await QRCode.toDataURL(identity);
+      }
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  async function scanQR() {
+    try {
+      const result = await scan();
+      if (result && result.content) {
+        recipient = result.content;
+      }
+    } catch (e) {
+      console.error("Scanning failed:", e);
     }
   }
 
@@ -34,6 +52,7 @@
     try {
       await invoke("send_message", { content: newMessage, recipient });
       newMessage = "";
+      await loadData();
     } catch (e) {
       console.error(e);
     }
@@ -44,6 +63,7 @@
       const pos = await getCurrentPosition();
       const content = `📍 Location: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
       await invoke("send_message", { content, recipient });
+      await loadData();
     } catch (e) {
       console.error("Failed to get location:", e);
     }
@@ -59,6 +79,7 @@
         const uint8Array = new Uint8Array(arrayBuffer);
         try {
           await invoke("send_image", { imageData: Array.from(uint8Array), recipient });
+          await loadData();
         } catch (err) {
           console.error("Failed to send image:", err);
         }
@@ -86,11 +107,35 @@
         <img src="/bestra-chat.svg" alt="Bestra Logo" class="w-full h-full object-contain" />
       </div>
       <div>
-        <h1 class="text-2xl font-black tracking-tight text-white">RNSD CHAT</h1>
-        <p class="text-xs font-mono text-white/70 truncate w-48">ID: {identity}</p>
+        <h1 class="text-2xl font-black tracking-tight text-white uppercase">Bestra</h1>
+        <div class="flex items-center space-x-2">
+          <p class="text-[10px] font-mono text-white/70 truncate w-32">ID: {identity}</p>
+          <button 
+            onclick={() => showQR = !showQR}
+            class="p-1 bg-white/10 hover:bg-white/20 rounded text-white transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 17h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
+
+  {#if showQR}
+    <div class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8" onclick={() => showQR = false}>
+      <div class="bg-white p-6 rounded-3xl shadow-2xl flex flex-col items-center space-y-4" onclick={(e) => e.stopPropagation()}>
+        <img src={qrCodeDataUrl} alt="My ID QR Code" class="w-64 h-64" />
+        <p class="text-slate-900 font-bold text-lg">My Identity QR</p>
+        <p class="text-slate-500 text-xs font-mono break-all text-center max-w-[200px]">{identity}</p>
+        <button 
+          onclick={() => showQR = false}
+          class="w-full py-3 bg-slate-900 text-white font-bold rounded-xl"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  {/if}
 
   <!-- Messages Area -->
   <div class="flex-1 overflow-y-auto p-4 space-y-4">
@@ -154,35 +199,6 @@
 
     <div class="flex space-x-2">
       <input 
-        bind:value={newMessage} 
-        onkeydown={(e) => e.key === 'Enter' && sendMessage()}
-        placeholder="Message..." 
-        class="flex-1 p-3 bg-slate-800 border border-slate-700 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-      />
-      <button 
-        onclick={sendMessage}
-        class="px-6 py-3 bg-brand-blue hover:bg-blue-600 rounded-2xl font-bold text-white shadow-lg transition-all active:scale-95"
-      >
-        Send
-      </button>
-    </div>
-  </div>
-</div>
-
-<style>
-  /* Custom scrollbar for message area */
-  .overflow-y-auto::-webkit-scrollbar {
-    width: 4px;
-  }
-  .overflow-y-auto::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .overflow-y-auto::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 10px;
-  }
-</style>
- 
         bind:value={newMessage} 
         onkeydown={(e) => e.key === 'Enter' && sendMessage()}
         placeholder="Message..." 
