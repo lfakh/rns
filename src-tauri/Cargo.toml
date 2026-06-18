@@ -34,8 +34,8 @@ rusqlite = { version = "0.31.0", features = ["bundled"] }
 tokio = { version = "1", features = ["full"] }
 
 # Yggdrasil dependencies
-yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", package = "yggdrasil" }
-ironwood = { git = "https://github.com/Revertron/Yggdrasil-ng.git", package = "ironwood" }
+yggdrasil = { git = "https://github.com/Revertron/Yggdrasil-ng.git", package = "yggdrasil", default-features = false }
+ironwood = { git = "https://github.com/Revertron/Yggdrasil-ng.git", package = "ironwood", default-features = false }
 toml = "1"
 
 # Miscellaneous utilities

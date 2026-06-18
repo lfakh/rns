@@ -9,6 +9,6 @@
     "core:default",
     "shell:default",
     "geolocation:default",
-    "event:default"
+    "core:event:default"
   ]
 }
