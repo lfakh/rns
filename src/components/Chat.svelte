@@ -20,7 +20,7 @@
   let recipient = $state("");
   let fileInput: HTMLInputElement;
 
-  async fn loadData() {
+  async function loadData() {
     try {
       identity = await invoke("get_identity");
       messages = await invoke("get_messages");
@@ -29,7 +29,7 @@
     }
   }
 
-  async fn sendMessage() {
+  async function sendMessage() {
     if (!newMessage) return;
     try {
       await invoke("send_message", { content: newMessage, recipient });
@@ -39,7 +39,7 @@
     }
   }
 
-  async fn sendLocation() {
+  async function sendLocation() {
     try {
       const pos = await getCurrentPosition();
       const content = `📍 Location: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
@@ -49,7 +49,7 @@
     }
   }
 
-  async fn handleFileChange(e: Event) {
+  async function handleFileChange(e: Event) {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files[0]) {
       const file = target.files[0];
