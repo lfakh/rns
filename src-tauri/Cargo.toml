@@ -43,3 +43,6 @@ uuid = { version = "1", features = ["v4"] }
 image = { version = "0.25", features = ["avif"] }
 audiopus = "0.3.0-rc.0"
 ed25519-dalek = "2"
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-barcode-scanner = "2"

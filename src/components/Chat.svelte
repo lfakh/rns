@@ -129,6 +129,13 @@
         class="flex-1 p-2 bg-slate-800 border border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
       <button 
+        onclick={scanQR}
+        class="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 transition-colors"
+        title="Scan QR Code"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+      </button>
+      <button 
         onclick={sendLocation}
         class="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 transition-colors"
         title="Share Location"
@@ -147,6 +154,35 @@
 
     <div class="flex space-x-2">
       <input 
+        bind:value={newMessage} 
+        onkeydown={(e) => e.key === 'Enter' && sendMessage()}
+        placeholder="Message..." 
+        class="flex-1 p-3 bg-slate-800 border border-slate-700 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+      <button 
+        onclick={sendMessage}
+        class="px-6 py-3 bg-brand-blue hover:bg-blue-600 rounded-2xl font-bold text-white shadow-lg transition-all active:scale-95"
+      >
+        Send
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Custom scrollbar for message area */
+  .overflow-y-auto::-webkit-scrollbar {
+    width: 4px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+  }
+</style>
+ 
         bind:value={newMessage} 
         onkeydown={(e) => e.key === 'Enter' && sendMessage()}
         placeholder="Message..." 

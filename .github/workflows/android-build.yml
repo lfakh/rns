@@ -55,6 +55,11 @@ jobs:
           add_perm "android.permission.ACCESS_NETWORK_STATE"
           add_perm "android.permission.ACCESS_WIFI_STATE"
           add_perm "android.permission.CHANGE_WIFI_MULTICAST_STATE"
+          add_perm "android.permission.CAMERA"
+          add_perm "android.permission.RECORD_AUDIO"
+          add_perm "android.permission.MODIFY_AUDIO_SETTINGS"
+          add_perm "android.permission.ACCESS_FINE_LOCATION"
+          add_perm "android.permission.ACCESS_COARSE_LOCATION"
 
       - name: Build APK
         run: npx tauri android build --debug

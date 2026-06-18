@@ -1,4 +1,4 @@
-FROM docker.io/eclipse-temurin:17-jdk-focal
+FROM docker.io/eclipse-temurin:26-jdk
 
 # 1. Install System Dependencies
 RUN apt-get update && apt-get install -y \
@@ -36,7 +36,7 @@ RUN npm install
 RUN npx tauri android init
 # Inject permissions as we do in CI
 RUN MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml" && \
-    sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />\n    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />' $MANIFEST
+    sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />\n    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' $MANIFEST
 
 # Build the APK
 CMD ["npx", "tauri", "android", "build", "--debug"]
