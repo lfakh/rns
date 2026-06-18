@@ -9,6 +9,10 @@ export default defineConfig({
   output: 'static',
   vite: {
     plugins: [tailwindcss()],
+    resolve: {
+      // @ts-ignore
+      tsconfigPaths: false,
+    },
     css: {
       transformer: 'lightningcss',
     },
