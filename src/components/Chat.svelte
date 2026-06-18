@@ -24,13 +24,31 @@
   let recipient = $state("");
   let fileInput: HTMLInputElement;
 
+  interface Contact {
+    identity_hash: string;
+    display_name: string;
+    status: string;
+  }
+  let pendingContacts = $state<Contact[]>([]);
+  let showPending = $state(false);
+
   async function loadData() {
     try {
       identity = await invoke("get_identity");
       messages = await invoke("get_messages");
+      pendingContacts = await invoke("get_pending_contacts");
       if (identity) {
         qrCodeDataUrl = await QRCode.toDataURL(identity);
       }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function acceptFriend(hash: string) {
+    try {
+      await invoke("accept_handshake", { identityHash: hash });
+      await loadData();
     } catch (e) {
       console.error(e);
     }
@@ -90,11 +108,19 @@
 
   onMount(() => {
     loadData();
-    const unlisten = listen("new-message", () => {
+    const unlistenMsg = listen("new-message", () => {
+      loadData();
+    });
+    const unlistenReq = listen("new-friend-request", () => {
+      loadData();
+    });
+    const unlistenAccept = listen("friend-request-accepted", () => {
       loadData();
     });
     return () => {
-      unlisten.then(u => u());
+      unlistenMsg.then(u => u());
+      unlistenReq.then(u => u());
+      unlistenAccept.then(u => u());
     };
   });
 </script>
@@ -118,8 +144,49 @@
           </button>
         </div>
       </div>
+      <div class="flex-1 flex justify-end">
+        {#if pendingContacts.length > 0}
+          <button 
+            onclick={() => showPending = !showPending}
+            class="relative p-2 bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-400 rounded-full transition-all pulse-animation"
+          >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingContacts.length}</span>
+          </button>
+        {/if}
+      </div>
     </div>
   </div>
+
+  {#if showPending}
+    <div class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8" onclick={() => showPending = false}>
+      <div class="bg-slate-900 p-6 rounded-3xl shadow-2xl w-full max-w-md flex flex-col space-y-4" onclick={(e) => e.stopPropagation()}>
+        <h2 class="text-xl font-bold text-white">Friend Requests</h2>
+        <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+          {#each pendingContacts as contact}
+            <div class="bg-slate-800 p-4 rounded-2xl flex items-center justify-between border border-slate-700">
+              <div class="flex-1 min-w-0 mr-4">
+                <p class="text-white font-bold truncate">{contact.display_name}</p>
+                <p class="text-slate-400 text-xs font-mono truncate">{contact.identity_hash}</p>
+              </div>
+              <button 
+                onclick={() => acceptFriend(contact.identity_hash)}
+                class="px-4 py-2 bg-brand-blue text-white text-sm font-bold rounded-xl active:scale-95 transition-all"
+              >
+                Accept
+              </button>
+            </div>
+          {/each}
+        </div>
+        <button 
+          onclick={() => showPending = false}
+          class="w-full py-3 bg-slate-800 text-white font-bold rounded-xl"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  {/if}
 
   {#if showQR}
     <div class="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8" onclick={() => showQR = false}>
@@ -225,5 +292,14 @@
   .overflow-y-auto::-webkit-scrollbar-thumb {
     background: #334155;
     border-radius: 10px;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+  .pulse-animation {
+    animation: pulse 2s infinite ease-in-out;
   }
 </style>

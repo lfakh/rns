@@ -12,6 +12,36 @@ use yggdrasil::core::Core;
 use yggdrasil::config::Config;
 use ed25519_dalek::SigningKey;
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Protocol {
+    HandshakeRequest {
+        sender_id: String,
+        sender_name: String,
+    },
+    HandshakeAccept {
+        sender_id: String,
+    },
+    ChatMessage {
+        sender_id: String,
+        content: String,
+    },
+    HistorySync {
+        sender_id: String,
+        messages: Vec<SyncMessage>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SyncMessage {
+    pub id: String,
+    pub content: String,
+    pub timestamp: String,
+    pub msg_type: String,
+}
+
 #[allow(dead_code)]
 pub struct NetworkState {
     pub identity: PrivateIdentity,
@@ -99,21 +129,61 @@ pub async fn init_network(app_handle: &AppHandle) -> Result<NetworkState, Box<dy
         
         while let Ok(received) = rx.recv().await {
             if received.destination == my_address {
-                let content = String::from_utf8_lossy(received.data.as_slice()).to_string();
-                let sender = "unknown".to_string();
+                let data = String::from_utf8_lossy(received.data.as_slice()).to_string();
                 
-                println!("Received message for {}: {}", my_address, content);
+                println!("Received data for {}: {}", my_address, data);
                 
-                if let Some(db) = handle_clone.try_state::<DbState>() {
-                    let id = uuid::Uuid::new_v4().to_string();
-                    let conn = db.conn.lock().unwrap();
-                    let res = conn.execute(
-                        "INSERT INTO messages (id, sender, content, msg_type) VALUES (?, ?, ?, ?)",
-                        (&id, &sender, &content, "text"),
-                    );
-                    if let Err(e) = res {
-                        eprintln!("Failed to save received message: {}", e);
-                    } else {
+                if let Ok(protocol) = serde_json::from_str::<Protocol>(&data) {
+                    if let Some(db) = handle_clone.try_state::<DbState>() {
+                        let conn = db.conn.lock().unwrap();
+                        
+                        match protocol {
+                            Protocol::HandshakeRequest { sender_id, sender_name } => {
+                                println!("Received handshake request from {} ({})", sender_name, sender_id);
+                                let _ = conn.execute(
+                                    "INSERT OR REPLACE INTO contacts (identity_hash, display_name, status) VALUES (?, ?, ?)",
+                                    (&sender_id, &sender_name, "pending"),
+                                );
+                                let _ = handle_clone.emit("new-friend-request", &sender_id);
+                            }
+                            Protocol::HandshakeAccept { sender_id } => {
+                                println!("Received handshake acceptance from {}", sender_id);
+                                let _ = conn.execute(
+                                    "UPDATE contacts SET status = 'accepted' WHERE identity_hash = ?",
+                                    [&sender_id],
+                                );
+                                let _ = handle_clone.emit("friend-request-accepted", &sender_id);
+                            }
+                            Protocol::ChatMessage { sender_id, content } => {
+                                println!("Received message from {}: {}", sender_id, content);
+                                let id = uuid::Uuid::new_v4().to_string();
+                                let _ = conn.execute(
+                                    "INSERT INTO messages (id, sender, content, msg_type) VALUES (?, ?, ?, ?)",
+                                    (&id, &sender_id, &content, "text"),
+                                );
+                                let _ = handle_clone.emit("new-message", &id);
+                            }
+                            Protocol::HistorySync { sender_id, messages } => {
+                                println!("Received history sync from {} with {} messages", sender_id, messages.len());
+                                for msg in messages {
+                                    let _ = conn.execute(
+                                        "INSERT OR IGNORE INTO messages (id, sender, content, msg_type, timestamp) VALUES (?, ?, ?, ?, ?)",
+                                        (&msg.id, &sender_id, &msg.content, &msg.msg_type, &msg.timestamp),
+                                    );
+                                }
+                                let _ = handle_clone.emit("new-message", "sync"); // Trigger full refresh
+                            }
+                        }
+                } else {
+                    // Fallback for legacy raw text messages
+                    if let Some(db) = handle_clone.try_state::<DbState>() {
+                        let id = uuid::Uuid::new_v4().to_string();
+                        let conn = db.conn.lock().unwrap();
+                        let sender = "unknown".to_string();
+                        let _ = conn.execute(
+                            "INSERT INTO messages (id, sender, content, msg_type) VALUES (?, ?, ?, ?)",
+                            (&id, &sender, &data, "text"),
+                        );
                         let _ = handle_clone.emit("new-message", id);
                     }
                 }

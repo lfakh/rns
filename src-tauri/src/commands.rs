@@ -52,20 +52,124 @@ pub async fn get_messages(db: State<'_, DbState>) -> Result<Vec<Message>, String
 pub struct Contact {
     pub identity_hash: String,
     pub display_name: String,
+    pub status: String,
 }
 
 #[command]
 pub async fn add_contact(
     db: State<'_, DbState>,
+    network: State<'_, NetworkState>,
     identity_hash: String,
     display_name: String,
 ) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    
+    // 1. Insert as pending
     conn.execute(
-        "INSERT OR REPLACE INTO contacts (identity_hash, display_name) VALUES (?, ?)",
-        (&identity_hash, &display_name),
+        "INSERT OR REPLACE INTO contacts (identity_hash, display_name, status) VALUES (?, ?, ?)",
+        (&identity_hash, &display_name, "pending"),
     )
     .map_err(|e| e.to_string())?;
+    
+    // 2. Send handshake request via Reticulum
+    let my_id = network.identity.address_hash().to_hex_string();
+    let my_name = "User".to_string(); // TODO: Get from profile
+    
+    let protocol = crate::network::Protocol::HandshakeRequest {
+        sender_id: my_id,
+        sender_name: my_name,
+    };
+    
+    let payload = serde_json::to_string(&protocol).map_err(|e| e.to_string())?;
+    let recipient_hash = AddressHash::new_from_hex_string(&identity_hash).map_err(|e| format!("{:?}", e))?;
+    
+    let packet = Packet {
+        header: Header::default(),
+        ifac: None,
+        destination: recipient_hash,
+        transport: None,
+        context: PacketContext::None,
+        data: PacketDataBuffer::new_from_slice(payload.as_bytes()),
+    };
+    
+    let transport = network.transport.lock().await;
+    transport.send_packet(packet).await;
+    
+    Ok(())
+}
+
+#[command]
+pub async fn accept_handshake(
+    network: State<'_, NetworkState>,
+    db: State<'_, DbState>,
+    identity_hash: String,
+) -> Result<(), String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    
+    // 1. Update status to accepted
+    conn.execute(
+        "UPDATE contacts SET status = 'accepted' WHERE identity_hash = ?",
+        [&identity_hash],
+    )
+    .map_err(|e| e.to_string())?;
+    
+    // 2. Send handshake acceptance
+    let my_id = network.identity.address_hash().to_hex_string();
+    let protocol = crate::network::Protocol::HandshakeAccept {
+        sender_id: my_id,
+    };
+    
+    let payload = serde_json::to_string(&protocol).map_err(|e| e.to_string())?;
+    let recipient_hash = AddressHash::new_from_hex_string(&identity_hash).map_err(|e| format!("{:?}", e))?;
+    
+    let packet = Packet {
+        header: Header::default(),
+        ifac: None,
+        destination: recipient_hash,
+        transport: None,
+        context: PacketContext::None,
+        data: PacketDataBuffer::new_from_slice(payload.as_bytes()),
+    };
+    
+    let transport = network.transport.lock().await;
+    transport.send_packet(packet).await;
+    
+    // 3. Send last 10 messages as history sync
+    let last_messages = {
+        let mut stmt = conn.prepare("SELECT id, content, timestamp, msg_type FROM messages ORDER BY timestamp DESC LIMIT 10").map_err(|e| e.to_string())?;
+        let msg_iter = stmt.query_map([], |row| {
+            Ok(crate::network::SyncMessage {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                timestamp: row.get(2)?,
+                msg_type: row.get(3)?,
+            })
+        }).map_err(|e| e.to_string())?;
+        
+        let mut msgs = Vec::new();
+        for msg in msg_iter {
+            msgs.push(msg.map_err(|e| e.to_string())?);
+        }
+        msgs
+    };
+    
+    let sync_protocol = crate::network::Protocol::HistorySync {
+        sender_id: my_id,
+        messages: last_messages,
+    };
+    
+    let sync_payload = serde_json::to_string(&sync_protocol).map_err(|e| e.to_string())?;
+    let sync_packet = Packet {
+        header: Header::default(),
+        ifac: None,
+        destination: recipient_hash,
+        transport: None,
+        context: PacketContext::None,
+        data: PacketDataBuffer::new_from_slice(sync_payload.as_bytes()),
+    };
+    
+    transport.send_packet(sync_packet).await;
+    
     Ok(())
 }
 
@@ -73,7 +177,7 @@ pub async fn add_contact(
 pub async fn get_contacts(db: State<'_, DbState>) -> Result<Vec<Contact>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT identity_hash, display_name FROM contacts ORDER BY display_name ASC")
+        .prepare("SELECT identity_hash, display_name, status FROM contacts WHERE status = 'accepted' ORDER BY display_name ASC")
         .map_err(|e| e.to_string())?;
         
     let contact_iter = stmt
@@ -81,6 +185,7 @@ pub async fn get_contacts(db: State<'_, DbState>) -> Result<Vec<Contact>, String
             Ok(Contact {
                 identity_hash: row.get(0)?,
                 display_name: row.get(1)?,
+                status: row.get(2)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -94,19 +199,28 @@ pub async fn get_contacts(db: State<'_, DbState>) -> Result<Vec<Contact>, String
 }
 
 #[command]
-pub async fn update_location(
-    db: State<'_, DbState>,
-    latitude: f64,
-    longitude: f64,
-) -> Result<(), String> {
+pub async fn get_pending_contacts(db: State<'_, DbState>) -> Result<Vec<Contact>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let location = format!("{},{}", latitude, longitude);
-    conn.execute(
-        "INSERT OR REPLACE INTO profile (key, value) VALUES ('last_location', ?)",
-        [location],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
+    let mut stmt = conn
+        .prepare("SELECT identity_hash, display_name, status FROM contacts WHERE status = 'pending' ORDER BY display_name ASC")
+        .map_err(|e| e.to_string())?;
+        
+    let contact_iter = stmt
+        .query_map([], |row| {
+            Ok(Contact {
+                identity_hash: row.get(0)?,
+                display_name: row.get(1)?,
+                status: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+        
+    let mut contacts = Vec::new();
+    for contact in contact_iter {
+        contacts.push(contact.map_err(|e| e.to_string())?);
+    }
+    
+    Ok(contacts)
 }
 
 #[command]
@@ -133,7 +247,13 @@ pub async fn send_message(
     // 2. Notify via Tauri Event
     app.emit("new-message", &id).map_err(|e| e.to_string())?;
     
-    // 3. Send via Reticulum
+    // 3. Send via Reticulum using the Protocol
+    let protocol = crate::network::Protocol::ChatMessage {
+        sender_id: sender,
+        content,
+    };
+    
+    let payload = serde_json::to_string(&protocol).map_err(|e| e.to_string())?;
     let recipient_hash = AddressHash::new_from_hex_string(&recipient).map_err(|e| format!("{:?}", e))?;
     
     let packet = Packet {
@@ -142,13 +262,13 @@ pub async fn send_message(
         destination: recipient_hash,
         transport: None,
         context: PacketContext::None,
-        data: PacketDataBuffer::new_from_slice(content.as_bytes()),
+        data: PacketDataBuffer::new_from_slice(payload.as_bytes()),
     };
     
     let transport = network.transport.lock().await;
     transport.send_packet(packet).await;
     
-    println!("Sent message to {}: {}", recipient, content);
+    println!("Sent protocol message to {}: {:?}", recipient, protocol);
     
     Ok(())
 }
